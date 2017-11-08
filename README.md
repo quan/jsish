@@ -6,7 +6,7 @@ jsish
 Sample:
 ```javascript
 function identity() {
-   print "Hello World!";
+   print "Hello World!\n";
 }
 
 function exponent(power) {
@@ -25,7 +25,7 @@ function exponent(power) {
       }
 
       return result;
-   }
+   };
 }
 
 var square = exponent(2);
