@@ -113,16 +113,22 @@ fun parseBinaryExpr operators subExpr token fstream =
     end
 
 (*  Parses any number of object members and returns them as a list. *)
-val parseMembers = parseRepeatExpr [TK_DOT] expectProp
+fun parseMembers token fstream obj =
+    if token = TK_DOT
+    then
+        let
+            val (tkn, prop) = expectProp (nextToken fstream) fstream
+        in
+            parseMembers tkn fstream (EXP_MEMBER {obj=obj, prop=prop})
+        end
+    else (token, obj)
 
 (*  Parses a parenthesized assignment expression. *)
 fun parseParenExpr fstream =
     let
-        (* Read the left parenthesis. *)
-        val tkn0 = nextToken fstream
-        val (tkn1, expr) = parseExpr tkn0 fstream
+        val (tkn, expr) = parseExpr (nextToken fstream) fstream
     in
-        (expect TK_RPAREN tkn1 fstream, expr)
+        (expect TK_RPAREN tkn fstream, expr)
     end
 
 (*  Parses a function expression, which consists of
@@ -306,10 +312,9 @@ and parseLHSExpr token fstream = parseCallExpr token fstream
 and parseUnaryOp token fstream =
     let
         val opr = tokenToUnaryOp token
-        val tkn0 = nextToken fstream
-        val (tkn1, expr) = parseLHSExpr tkn0 fstream
+        val (tkn, expr) = parseLHSExpr (nextToken fstream) fstream
     in 
-        (tkn1, EXP_UNARY {opr=opr, opnd=expr})
+        (tkn, EXP_UNARY {opr=opr, opnd=expr})
     end
 
 (*  Parses a unary expression, which consists of
