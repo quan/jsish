@@ -1,5 +1,21 @@
-Control.Print.printDepth := 20;
-Control.Print.printLength := 100;
+(*
+Copyright (c) 2017 Minh-Quan Tran
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*)
 
 exception ConversionError of string
 exception InvalidEscape of string
@@ -22,7 +38,9 @@ fun line str = str ^ "\n"
 (* Wraps a string in single quotes. *)
 fun sq s = "'" ^ s ^ "'"
 (* Wraps a character in single quotes. *)
-val sqstr = sq o str 
+val sqstr = sq o str
+
+val concatWithComma = String.concatWith ", "
 
 (* Matches the first item in a pair and returns its counterpart. *)
 fun findMatch exp pairs = (

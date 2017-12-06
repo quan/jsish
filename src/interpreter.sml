@@ -1,5 +1,23 @@
-use "printAST.sml";
-(*use "ast.sml";*)
+(*
+Copyright (c) 2017 Minh-Quan Tran
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*)
+
+use "parser.sml";
 use "value.sml";
 use "env.sml";
 
@@ -87,7 +105,7 @@ and evalUnaryExpr state UOP_TYPEOF expr = STRING (typeof (evalExpr state expr))
 
 (*  Evaluates a jsish assignment, assigning the value of the rhs to the lhs id. *)
 and evalAssignment state (EXP_ID id) rhs = bindValue state (evalExpr state rhs) id
-  | evalAssignment state other rhs = raise LeftHandSide (exprString other)
+  | evalAssignment state other rhs = raise LeftHandSide ("broken lhs error")
 
 (*  Evaluates a jsish conditional with the given condition and branches. *)
 and evalCondExpr state guard thenExpr elseExpr =
@@ -103,7 +121,7 @@ and evalCondExpr state guard thenExpr elseExpr =
 
 (* Binds an argument to a parameter in the current environment. *)
 and assignParam state arg (EXP_ID id) = (bindValueInCurrentEnv state arg id; ())
-  | assignParam state arg other = raise LeftHandSide (exprString other)
+  | assignParam state arg other = raise LeftHandSide ("broken lhs error")
  
 (* Assigns function call arguments to parameters. *)
 and assignParams state [] args = ()
@@ -184,7 +202,7 @@ and evalExpr state EXP_TRUE = BOOL true
             EXP_ID name => (bindValueInCurrentEnv midScope function name; function)
           | _ => function)
     end
-  | evalExpr state (EXP_FN_CALL {func, args}) = evalFunctionCall state func args
+  | evalExpr state (EXP_CALL {func, args}) = evalFunctionCall state func args
   | evalExpr state (EXP_NUM num) = NUMBER num
   | evalExpr state (EXP_STRING st) = STRING st
   | evalExpr state (EXP_BINARY {opr, lft, rht}) = evalBinaryExpr state opr lft rht
@@ -232,11 +250,11 @@ and evalFunctionDec state (EXP_FUNCTION {id=EXP_ID id, params, body}) =
 
 (*  Evaluates a jsish variable declaration, binding a value to an identifier in
     the current environment. *)
-and evalVariableDec state (VAR_DEC {id=EXP_ID id, expr=EXP_UNDEFINED}) =
+and evalVariableDec state (VAR_DEC {id=EXP_ID id}) =
     if not (definedInCurrentEnv state id)
     then (bindValueInCurrentEnv state UNDEFINED id; ())
     else ()
-  | evalVariableDec state (VAR_DEC {id=EXP_ID id, expr}) =
+  | evalVariableDec state (VAR_INIT {id=EXP_ID id, expr}) =
     (bindValueInCurrentEnv state (evalExpr state expr) id; ())
 
 (*  Evaluates a jsish source element. *)
