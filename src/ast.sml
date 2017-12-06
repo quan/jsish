@@ -84,7 +84,7 @@ val binaryOpTokens = [
 val unaryOpTokens = [
     (TK_NOT, UOP_NOT),
     (TK_TYPEOF, UOP_TYPEOF),
-    (TK_MINUS, UOP_NOT)
+    (TK_MINUS, UOP_MINUS)
 ]
 
 (* Converts a token to a binary operator. *)
