@@ -17,47 +17,71 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 *)
 
-exception NotFound
+use "value.sml";
+use "table.sml";
 
-(* Checks if an identifier is defined in an environment. *)
-fun definedInEnv env id = isSome (HashTable.find env id)
+exception InvalidAddress of int
+exception InvalidIdentifier of string
 
-(* Checks if an identifier is defined in the current environment. *)
-fun definedInCurrentEnv envs id = definedInEnv (hd envs) id
+(* Extract state values. *)
+fun stateEnvs {envs, heap, calls, pending} = envs
+fun stateHeap {envs, heap, calls, pending} = heap
+fun callStack {envs, heap, calls, pending} = calls
+fun pendingObjs {envs, heap, calls, pending} = pending
+fun heapTable {envs, heap={nextAddr, table}, calls, pending} = table
+fun heapAddr {envs, heap={nextAddr, table}, calls, pending} = nextAddr
+fun currentEnv state = (hd o stateEnvs) state
+
+(* Environment aliases for hash table functions. *)
+val defined = contains
+val bind = put
+
+fun createEnv () = createTable HashString.hashString
+fun createHeap () = createTable Word.fromInt
 
 (* Finds the most local environment in which an identifier has been defined. *)
 fun findDefiningEnv [] id = raise NotFound
   | findDefiningEnv (env::envs) id = 
-    if definedInEnv env id
+    if defined env id
     then env
     else findDefiningEnv envs id
 
 (* Looks up the value of an identifier. *)
-fun lookupValue envs id = valOf (HashTable.find (findDefiningEnv envs id) id)
+fun lookup envs id = get (findDefiningEnv envs id) id
 
-(* Binds a value to an identifier in the given environment. *)
-fun bindValueInEnv env value id = (HashTable.insert env (id, value); value)
+(* Binds a value to an identifier. *)
+fun assign state value id = (bind (findDefiningEnv (stateEnvs state) id) id value)
+    handle NotFound => raise InvalidIdentifier id
+fun bindValueInCurrentEnv state value id = bind (currentEnv state) id value
+fun definedInCurrentEnv state id = defined (currentEnv state) id
 
-(* Binds a value to an identifier in the current environment. *)
-fun bindValueInCurrentEnv envs value id = bindValueInEnv (hd envs) value id
+(* Declares a variable, setting it to undefined if it has not already been defined. *)
+fun declareValueInCurrentEnv state id =
+    if not (definedInCurrentEnv state id)
+    then bindValueInCurrentEnv state UNDEFINED id
+    else ()
 
-(* Binds a value to an identifier, adding the identifier to the current environment if it is not found. *)
-fun bindValue envs value id = 
+(* Initializes the state, returning the state and the global object. *)
+fun initState () = 
     let
-        val definingEnv = (findDefiningEnv envs id) 
-        (* If the identifier has not been used previously, add it to the global scope. *)
-        handle NotFound => List.last envs
-    in
-        bindValueInEnv definingEnv value id
+        (* Create the top-level environment chain and heap. *)
+        val tle = createEnv ()
+        val envs = [tle]
+        val heap = {nextAddr=ref 0, table=createHeap ()}
+    in  
+        ({envs=envs, heap=heap, calls=[], pending=[]}, tle)
     end
 
-(* Creates and appends a new hash table to a list of environments or returns a new list. *)
-fun newEnv [] = 
+(* Creates and appends a new hash table to a list of environments. *)
+fun newEnv envs = createEnv ()::envs
+
+(* Creates a new state with an added environment scope pushed onto the call stack. *)
+fun pushEnv state scope = 
     let
-        val hash_fn = HashString.hashString
-        val cmp_fn = (op =)
-        val initial_size = 20
+        val envs = newEnv scope
+        val heap = stateHeap state
+        val calls = hd envs::callStack state
+        val pending = pendingObjs state
     in
-        [HashTable.mkTable (hash_fn, cmp_fn) (initial_size, NotFound)]
+        {envs=envs, heap=heap, calls=calls, pending=pending}
     end
-  | newEnv envs = (newEnv [])@envs
