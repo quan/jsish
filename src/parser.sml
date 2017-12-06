@@ -1,25 +1,3 @@
-(*
-Copyright (c) 2017 Minh-Quan Tran
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*)
-
 use "tokenizer.sml";
 use "ast.sml";
 
@@ -35,8 +13,9 @@ fun returnRev (token, ls) = (token, rev ls)
 (* Checks if the given token is a valid starting token for an assignment expression. *)
 fun beginsAssignmentExpr (TK_ID _) = true
   | beginsAssignmentExpr (TK_NUM _) = true
-  | beginsAssignmentExpr (TK_BOOL _) = true
   | beginsAssignmentExpr (TK_STRING _) = true
+  | beginsAssignmentExpr TK_TRUE = true
+  | beginsAssignmentExpr TK_FALSE = true
   | beginsAssignmentExpr TK_UNDEFINED = true
   | beginsAssignmentExpr TK_FUNCTION = true
   | beginsAssignmentExpr TK_LPAREN = true
@@ -149,7 +128,7 @@ and parseFunction idReq fstream =
         val (tkn6, body) = parseSourceElems tkn5 fstream
         val tkn7 = expect TK_RBRACE tkn6 fstream
     in
-        (tkn7, EXP_CLOSURE {id=id, params=params, body=body})
+        (tkn7, EXP_FUNCTION {id=id, params=params, body=body})
     end
 
 (*  Parses a primary expression, which is one of
@@ -164,8 +143,9 @@ and parseFunction idReq fstream =
 and parsePrimaryExpr TK_LPAREN fstream = parseParenExpr fstream
   | parsePrimaryExpr (TK_ID id) fstream = expectId (TK_ID id) fstream
   | parsePrimaryExpr (TK_NUM num) fstream = (nextToken fstream, EXP_NUM num)
-  | parsePrimaryExpr (TK_BOOL bln) fstream = parseBool bln fstream
   | parsePrimaryExpr (TK_STRING st) fstream = (nextToken fstream, EXP_STRING st)
+  | parsePrimaryExpr TK_TRUE fstream = (nextToken fstream, EXP_TRUE)
+  | parsePrimaryExpr TK_FALSE fstream = (nextToken fstream, EXP_FALSE)
   | parsePrimaryExpr TK_FUNCTION fstream = parseFunction ID_OPTIONAL fstream
   | parsePrimaryExpr TK_UNDEFINED fstream = (nextToken fstream, EXP_UNDEFINED)
   | parsePrimaryExpr token fstream = expectErrorStr "value" token
@@ -204,13 +184,13 @@ and parseArgs token fstream =
         (expect TK_RPAREN tkn1 fstream, args)
     end
 
-(*  Parses a function call... *)
+(*  Parses a function call. *)
 and parseFunctionCall expr token fstream =
     if token = TK_LPAREN
     then
-        let
+        let (* Parse any additional chained function calls. *)
             val (tkn0, args) = parseArgs token fstream
-            val (tkn1, nextExpr) = parseFunctionCall (EXP_FN_CALL {id=expr, args=args}) tkn0 fstream
+            val (tkn1, nextExpr) = parseFunctionCall (EXP_FN_CALL {func=expr, args=args}) tkn0 fstream
         in
             (tkn1, nextExpr)
         end
@@ -330,7 +310,7 @@ and parseAssignmentOp token fstream (EXP_ID id) =
     in
         (tkn1, EXP_ASSIGN {lhs=lhsExpr, rhs=rhsExpr})
     end
-  | parseAssignmentOp token fstream other = raise LeftHandSide ("unexpected token '='")
+  | parseAssignmentOp token fstream other = raise LeftHandSide "="
 
 (*  Parses an assignment expression, which consists of
     - a conditional expression
@@ -464,11 +444,11 @@ and parseWhileStatement token fstream =
 and parseReturnStatement token fstream =
     let
         val tkn0 = expect TK_RETURN token fstream
-        val (tkn1, value) = if beginsAssignmentExpr tkn0
+        val (tkn1, expr) = if beginsAssignmentExpr tkn0
             then parseExpr tkn0 fstream
             else (tkn0, EXP_UNDEFINED)
     in
-        (expect TK_SEMI tkn1 fstream, RETURN_ST {value=value})
+        (expect TK_SEMI tkn1 fstream, RETURN_ST {expr=expr})
     end
 
 (*  Parses a statement, which consists of either
@@ -499,13 +479,13 @@ and parseStatement token fstream =
 and parseVarDeclaration token fstream =
     let
         val (tkn0, id) = expectId token fstream
-        val (tkn1, value) = (
+        val (tkn1, expr) = (
             if tkn0 = TK_ASSIGN
-            then parseAssignmentOp tkn0 fstream id
+            then parseAssignmentExpr (nextToken fstream) fstream
             else (tkn0, EXP_UNDEFINED)
         )
     in
-        (tkn1, VAR_DEC {id=id, value=value})
+        (tkn1, VAR_DEC {id=id, expr=expr})
     end
 
 (*  Parses a variable declaration list, which consists of
@@ -639,5 +619,5 @@ fun parse filename =
     in 
         ast
     end
-    handle LeftHandSide msg => error msg
+    handle LeftHandSide token => error ("unexpected token '" ^ token ^ "'")
          | Expect (expected, found) => error ("expected '" ^ expected ^ "', found '" ^ found ^ "'")

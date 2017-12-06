@@ -1,25 +1,3 @@
-(*
-Copyright (c) 2017 Minh-Quan Tran
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*)
-
 use "util.sml";
 
 datatype binaryOperator =
@@ -47,8 +25,8 @@ datatype expression =
      EXP_NUM of int
    | EXP_STRING of string
    | EXP_ID of string
-   | EXP_CLOSURE of {id: expression, params: expression list, body: sourceElement list}
-   | EXP_FN_CALL of {id: expression, args: expression list}
+   | EXP_FUNCTION of {id: expression, params: expression list, body: sourceElement list}
+   | EXP_FN_CALL of {func: expression, args: expression list}
    | EXP_TRUE
    | EXP_FALSE
    | EXP_UNDEFINED
@@ -57,7 +35,7 @@ datatype expression =
    | EXP_COND of {guard: expression, thenExpr: expression, elseExpr: expression}
    | EXP_ASSIGN of {lhs: expression, rhs: expression}
 
-and variable = VAR_DEC of {id: expression, value: expression}
+and variable = VAR_DEC of {id: expression, expr: expression}
 
 and statement =
     ST_EXP of {expr: expression}
@@ -65,7 +43,7 @@ and statement =
   | IF_ST of {guard: expression, thenBlock: statement, elseBlock: statement}
   | PRINT_ST of {expr: expression}
   | WHILE_ST of {guard: expression, block: statement}
-  | RETURN_ST of {value: expression}
+  | RETURN_ST of {expr: expression}
 
 and sourceElement = 
     STMT of {stmt: statement}

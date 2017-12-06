@@ -1,16 +1,13 @@
 (*
 Copyright (c) 2017 Minh-Quan Tran
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
-
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -28,14 +25,16 @@ exception UnexpectedChar of char
 exception UnexpectedEOF
 
 (*  Returns the next character value in the given filestream. *)
+(*  Does not consume the character. *)
 fun peekChar fstream = valOf (TextIO.lookahead fstream)
 
 (*  Reads the next character value from the given filestream.  *)
+(*  Consumes the character. *)
 fun nextChar fstream = valOf (TextIO.input1 fstream)
     handle Option => raise UnexpectedEOF
 
 (*  Checks if the given string is a symbol in jsish. *)
-fun isSymbol str = let val symbol = strToSymbol str in true end
+fun isSymbol str = let val symbol = stringToSymbol str in true end
     handle Match => false
 
 (*  Checks if the combination of symbols consistutes a double symbol. *)
@@ -45,10 +44,10 @@ fun isSymbolPair "&" "&" = true
   | isSymbolPair "!" "=" = true
   | isSymbolPair "<" "=" = true
   | isSymbolPair ">" "=" = true
-  | isSymbolPair first second = false
+  | isSymbolPair _ _ = false
 
 (*  Builds upon a token string with the next char read from a filestream. *)
-fun buildToken token fstream = (token ^ str (nextChar fstream))
+fun buildToken token fstream = token ^ str (nextChar fstream)
 
 (*  Reads a token from the filestream, one character at a time, where the token
     is defined by the given validator that determines which characters are allowed
@@ -81,7 +80,7 @@ fun readIdOrKeyword first fstream =
     let
         val tkn = TK_ID (readSimpleToken isAlnum isNotAlnum first fstream)
     in
-        if isTknKeyword tkn
+        if isKeyword tkn
         then idToKeyword tkn
         else tkn
     end
@@ -95,22 +94,11 @@ fun readNumber first fstream = TK_NUM (
    special case for escaped characters. *)
 fun parseString tkn fstream =
     readGenericToken (fn c => c = #"\\") readEscChar isNotQuotes isQuotes tkn fstream
+
 (* Handles escaped characters within strings. *)
 and readEscChar tkn fstream =
-    let (* Checks if an escaped character is valid. *)
-        fun validEscChar #"\\" = true
-          | validEscChar #"\"" = true
-          | validEscChar #"b" = true
-          | validEscChar #"f" = true
-          | validEscChar #"n" = true
-          | validEscChar #"r" = true
-          | validEscChar #"t" = true
-          | validEscChar #"v" = true
-          | validEscChar other = false
-    in
-        readGenericToken validEscChar parseString (fn c => false) (fn c => false) tkn fstream
-    end
-
+    readGenericToken isEscChar parseString (fn _ => false) (fn _ => false) tkn fstream
+    
 (*  Reads a String token from the filestream. *)
 fun readString fstream = TK_STRING (
     let 
@@ -128,9 +116,9 @@ fun readSymbol tkn fstream =
         val specialCase = (fn next => isSymbolPair first (str next))
         val handler = (fn token => fn fstream => token)
         (* Check for symbols consisting of two characters. *)
-        val token = readGenericToken specialCase handler (fn c => false) (fn c => true) tkn fstream
+        val token = readGenericToken specialCase handler (fn _ => false) (fn _ => true) tkn fstream
     in
-        strToSymbol token
+        stringToSymbol token
     end 
 
 
@@ -164,7 +152,9 @@ and ifNotEOF f fstream =
 
 (* Returns the next token from a provided file stream. *)
 val nextToken = ifNotEOF recognizeToken
-    handle ConversionError msg => error msg
-    handle StringNotTerminated => error "string not terminated"
-    handle UnexpectedChar ch => error ("encountered unexpected char '" ^ str ch ^ "'")
-    handle UnexpectedEOF => error ("unexpected eof during tokenization")
+    handle InvalidSymbol symbol => error ("invalid symbol: '" ^ symbol ^ "'")
+         | InvalidEscape seq => error ("invalid escape sequence: " ^ sq seq) 
+         | NotKeyword token => error (token ^ " is not a keyword")
+         | StringNotTerminated => error "string not terminated"
+         | UnexpectedChar c => error ("encountered unexpected char '" ^ str c ^ "'")
+         | UnexpectedEOF => error ("unexpected eof during tokenization")
