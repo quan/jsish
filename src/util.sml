@@ -20,6 +20,9 @@ SOFTWARE.
 exception ConversionError of string
 exception InvalidEscape of string
 
+fun first (a, _) = a
+fun second (_, b) = b
+
 (* Returns the string representation of a negative integer. *)
 fun negativeIntToString num = "-" ^ Int.toString(~num)
 
