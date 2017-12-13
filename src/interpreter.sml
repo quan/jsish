@@ -20,6 +20,7 @@ SOFTWARE.
 use "parser.sml";
 use "object.sml";
 
+exception This
 exception Return
 exception DivideByZero
 exception FunctionDeclaration of string
@@ -31,7 +32,7 @@ exception NewOperand of string
 exception UnaryOperation of (string * string * string)
 exception BinaryOperation of (string * string * string)
 
-(* Looks up an identifier in the state. *)
+(*  Looks up an identifier in the state. *)
 fun resolve id state = lookup (stateEnvs state) id 
     handle NotFound => raise InvalidIdentifier id
 
@@ -43,9 +44,9 @@ and exprToObj state = refToObj state o evalExpr state
 and exprType state (EXP_OBJ_CONSTR _) = "object"
   | exprType state expr = (typeof o evalExpr state) expr
 
-(* Creates a function value, creating a new encapsulating state with a new environment 
-   closure for named, self-referencing function expressions.
-   Returns the new environment and the new function. *)
+(*  Creates a function value, creating a new encapsulating state with a new environment 
+    closure for named, self-referencing function expressions.
+    Returns the new environment and the new function. *)
 and createClosure state params body =
     let
         val scope = stateEnvs state
@@ -54,8 +55,8 @@ and createClosure state params body =
         (CLOSURE {id=ref (), scope=stateEnvs newState, params=params, body=body}, newState)
     end
 
-(* Evaluates a property assignment, evaluating the assigned expression and returning a 
-   tuple with the property name and the value. *)
+(*  Evaluates a property assignment, evaluating the assigned expression and returning a 
+    tuple with the property name and the value. *)
 and evalPropAssignment state (prop, expr) = (prop, evalExpr state expr)
 
 (*  Dies from a type error from a binary operation for the given type raised by
@@ -65,11 +66,8 @@ and binaryTypeError state required lft rht oper = raise BinaryOperation (
     (exprType state lft) ^ " * " ^ (exprType state rht),
     oper
 )
-
-(*  Applies the given mathematical operation to the two number expressions. *)
 and appMathOp state f lft rht = NUMBER (f (exprToNum state lft, exprToNum state rht))
 
-(*  Divides the two given numbers, checking for division by zero. *)
 and appDivOp state lft rht =
     let
         val divisor = exprToNum state rht
@@ -79,18 +77,13 @@ and appDivOp state lft rht =
         else NUMBER (exprToNum state lft div divisor)
     end
 
-(*  Applies the given relational operation to the two number expressions. *)
 and appRelOp state f lft rht = BOOL (f (exprToNum state lft, exprToNum state rht))
 
-(*  Evaluates the two given expressions and applies the given function to the
-    resulting jsish values. *)
 and evalOp state f lft rht = f (evalExpr state lft) (evalExpr state rht)
 
-(*  Evaluates a jsish logical AND operation for the given expressions. *)
 and evalAnd state lft rht = BOOL (exprToBool state lft andalso exprToBool state rht)
     handle UnwrapMismatch (expected, found) => binaryTypeError state expected lft rht "&&"
 
-(*  Evaluates a jsish logical OR operation for the given expressions. *)
 and evalOr state lft rht = BOOL (exprToBool state lft orelse exprToBool state rht)
     handle UnwrapMismatch (expected, found) => raise BinaryOperation ("boolean", typeof (evalExpr state lft), "||")
 
@@ -156,13 +149,11 @@ and evalAssignment state (EXP_ID id) rhs =
         value
     end
 (* Evaluates an assignment to an object property. *)
-  | evalAssignment state (EXP_BINARY {opr=BOP_DOT, lft, rht}) rhs =
+  | evalAssignment state (EXP_MEMBER {obj, prop}) rhs =
     let
-        val obj = exprToObj state lft
-        val prop = exprToString state rht
         val rhsVal = evalExpr state rhs
     in
-        setProp obj (prop, rhsVal);
+        setProp (exprToObj state obj) (exprToString state prop, rhsVal);
         rhsVal
     end
   | evalAssignment state other rhs = raise LeftHandSide ("LHS ??")
@@ -313,11 +304,10 @@ and evalExpr state (EXP_NUM num) = NUMBER num
   | evalExpr state (EXP_CALL {func=EXP_MEMBER {obj, prop}, args}) = (
     evalMethodCall state obj prop args)
   | evalExpr state (EXP_CALL {func, args}) = evalFunctionCall state func args
-
   | evalExpr state EXP_TRUE = BOOL true
   | evalExpr state EXP_FALSE = BOOL false
   | evalExpr state EXP_UNDEFINED = UNDEFINED
-  | evalExpr state EXP_THIS = resolve "this" state
+  | evalExpr state EXP_THIS = ((resolve "this" state) handle InvalidIdentifier id => raise This)
   | evalExpr state (EXP_PROP prop) = STRING prop (* Return the string for looking up in the object table. *)
   | evalExpr state (EXP_MEMBER {obj, prop}) = evalMemberAccess state obj prop
   | evalExpr state (EXP_BINARY {opr, lft, rht}) = evalBinaryExpr state opr lft rht
@@ -372,7 +362,7 @@ and evalStatement state (ST_EXP {expr}) = (evalExpr state expr; UNDEFINED)
     closure and assigning it to an identifier. *)
 and evalFunctionDec state (EXP_FUNCTION {id=EXP_ID id, params, body}) =
     bindValueInCurrentEnv state (first (createClosure state params body)) id
-  | evalFunctionDec state expr = raise FunctionDeclaration ("temporarily broken")
+  | evalFunctionDec state expr = raise FunctionDeclaration ("temporarily broken -- no expression to string")
 
 (*  Evaluates a jsish variable declaration, binding a value to an identifier in
     the current stateironment. *)
@@ -381,7 +371,7 @@ and evalVariableDec state (VAR_DEC {id=EXP_ID id}) =
   | evalVariableDec state (VAR_INIT {id=EXP_ID id, expr}) =
     bindValueInCurrentEnv state (evalExpr state expr) id
   | evalVariableDec state variable =
-    raise VariableIdentifier ("temporarily broken")
+    raise VariableIdentifier ("temporarily broken -- no expression to string")
 
 (*  Evaluates a jsish source element. *)
 and evalSrcElem state (STMT {stmt}) = (evalStatement state stmt; ())
@@ -394,19 +384,14 @@ fun evalProgram state (PROGRAM {elems}) = app (evalSrcElem state) elems
 (*  Interpret the jsish program contained in the given filename. *)
 fun interpret filename = 
     let
-        val (state, tle) = initState ()
-
-        (* Create and bind the global object to "this". *)
-        val globalObj = createObj tle
-        val address = objectAlloc state globalObj
-        val globalRef = REFERENCE address
+        val state = initState ()
     in
-        bindValueInCurrentEnv state globalRef "this";
         evalProgram state (parse filename)
     end
     handle InvalidType msg => error msg
          | InvalidIdentifier id => error ("variable '" ^ id ^ "' not found")
          | VariableIdentifier id => error ("identifier '" ^ id ^ "' is not a valid variable name")
+         | This => error ("'this' does not exist in this context")
          | Return => error "return statements are only valid inside functions"
          | DivideByZero => error "division by zero"
          | UnaryOperation (expected, found, oper) => error ("unary operator '" ^ oper ^ "' requires " ^ expected ^ ", found " ^ found)

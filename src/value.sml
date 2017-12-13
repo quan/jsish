@@ -19,6 +19,10 @@ SOFTWARE.
 
 use "util.sml";
 
+exception UnwrapMismatch of (string * string)
+exception InvalidType of string
+exception FunctionInvocation of string
+
 (* The data types available in jsish. *)
 datatype value =
     NUMBER of int
@@ -33,10 +37,6 @@ datatype value =
   | REFERENCE of int
   | UNDEFINED
   | RETURN of value
-
-exception UnwrapMismatch of (string * string)
-exception InvalidType of string
-exception FunctionInvocation of string
 
 fun typeError expected found oper =
     raise InvalidType ("operator " ^ sq oper ^ " requires " ^ expected ^ ", found " ^ found)

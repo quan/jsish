@@ -63,12 +63,10 @@ fun beginsSourceElem TK_VAR = true
 
 (* Reads the next token from the file stream if the current token matches what
    is expected according to the jsish grammar. *)
-fun expect expected token fstream = (
-    (*printLn ("expecting " ^ tokenToString expected);*)
+fun expect expected token fstream =
     if token = expected
     then nextToken fstream
     else raise Expect (tokenToString expected, tokenToString token)
-)
 
 (* Parses a binary operator and reads the next token from the file stream. *)
 fun expectOp operators token fstream =
@@ -109,7 +107,7 @@ fun parseCommaSeparatedExpr f pred token fstream ls =
 (* Parses a expression of a type with the given [operators] and at least one
    sub expression to be parsed by the given function [subExpr], building an
    abstract syntax tree. *)
-fun parseRepeatExpr operators subExpr token fstream lft =
+fun parseRepeatExpr operators subExpr token fstream acc =
     if List.exists (fn opr => token = opr) operators
     then
         let
@@ -117,9 +115,9 @@ fun parseRepeatExpr operators subExpr token fstream lft =
             val (tkn1, rht) = subExpr tkn0 fstream
             val recurse = parseRepeatExpr operators subExpr
         in
-            recurse tkn1 fstream (EXP_BINARY {opr=opr, lft=lft, rht=rht})
+            recurse tkn1 fstream (EXP_BINARY {opr=opr, lft=acc, rht=rht})
         end
-    else (token, lft)
+    else (token, acc)
 
 (* Parses a binary expression defined by the given [operators] and with sub
    expressions parsed by the given function [subExpr]. *)

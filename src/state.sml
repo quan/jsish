@@ -65,11 +65,10 @@ fun declareValueInCurrentEnv state id =
 fun initState () = 
     let
         (* Create the top-level environment chain and heap. *)
-        val tle = createEnv ()
-        val envs = [tle]
+        val envs = [createEnv ()]
         val heap = {nextAddr=ref 0, table=createHeap ()}
     in  
-        ({envs=envs, heap=heap, calls=[], pending=[]}, tle)
+        {envs=envs, heap=heap, calls=[], pending=[]}
     end
 
 (* Creates and appends a new hash table to a list of environments. *)
